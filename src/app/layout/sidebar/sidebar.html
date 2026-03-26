@@ -1,0 +1,79 @@
+<div class="p-3 h-full flex flex-col">
+
+  <button routerLink="/chat/nou" class="flex items-center gap-3 p-3 w-full rounded-xl bg-transparent hover:bg-[#2f2f2f] transition-all border border-[#424242] text-sm mb-4 text-gray-200 shadow-sm active:scale-95">
+    <svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg">
+      <line x1="12" y1="5" x2="12" y2="19"></line>
+      <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Proiect Nou
+  </button>
+
+  <div class="text-xs text-gray-500 font-bold px-2 mb-3 mt-2 uppercase tracking-wider">Istoric Proiecte</div>
+
+  <div class="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+
+    @if (seIncarca) {
+      <div class="p-4 flex flex-col items-center justify-center gap-2 opacity-60">
+        <svg class="animate-spin h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+        <span class="text-[11px] text-gray-400">Se încarcă...</span>
+      </div>
+    }
+    @else if (istoric.length === 0) {
+      <div class="p-4 border border-dashed border-[#424242] rounded-xl bg-[#1e1e1e]/50 text-xs text-gray-500 text-center mt-2">
+        Niciun proiect încă.<br>Începe o poveste nouă!
+      </div>
+    }
+    @else {
+      @for (proiect of istoric; track proiect._id) {
+        <a
+          [routerLink]="['/chat', proiect._id]"
+          routerLinkActive="bg-[#2f2f2f] border-l-2 border-blue-500"
+          [routerLinkActiveOptions]="{exact: true}"
+          class="group relative flex flex-col gap-1.5 p-3 pr-10 w-full rounded-lg hover:bg-[#2f2f2f] transition-all cursor-pointer text-sm text-gray-300 border-l-2 border-transparent overflow-hidden">
+
+          <span class="truncate font-medium text-gray-200 text-[13px]">{{ proiect.prompt || 'Proiect fără nume' }}</span>
+
+          <div class="flex items-center justify-between text-[10px] text-gray-500 font-mono">
+            <span class="capitalize px-1.5 py-0.5 bg-[#1a1a1a] rounded border border-[#333]">{{ proiect.formatVideo?.replace('_', ' ') || 'Story' }}</span>
+            <span>{{ proiect.createdAt | date:'dd MMM, HH:mm' }}</span>
+          </div>
+
+          <button
+            (click)="stergeProiect(proiect._id, $event)"
+            class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all active:scale-95">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+          </button>
+        </a>
+      }
+    }
+
+  </div>
+</div>
+
+@if (chatDeStersId) {
+  <div class="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-fade-in" (click)="anuleazaStergerea()">
+    <div class="bg-[#1e1e1e] p-6 rounded-2xl border border-[#333] w-full max-w-sm shadow-2xl text-center" (click)="$event.stopPropagation()">
+
+      <div class="w-14 h-14 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center mx-auto mb-4 border border-red-500/20">
+        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+      </div>
+
+      <h3 class="text-lg font-bold text-gray-100 mb-2">Ștergi acest proiect?</h3>
+      <p class="text-sm text-gray-400 mb-6 leading-relaxed">Această acțiune este definitivă. Videoclipul și tot istoricul conversației vor fi șterse permanent.</p>
+
+      <div class="flex gap-3">
+        <button
+          (click)="anuleazaStergerea()"
+          class="flex-1 py-2.5 rounded-xl bg-[#2f2f2f] hover:bg-[#424242] text-gray-200 text-sm font-semibold transition-colors border border-[#424242]">
+          Anulează
+        </button>
+        <button
+          (click)="confirmaStergerea()"
+          class="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-semibold transition-colors shadow-lg shadow-red-900/20">
+          Da, șterge
+        </button>
+      </div>
+
+    </div>
+  </div>
+}
