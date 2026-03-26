@@ -53,7 +53,7 @@ ShortsGPT is a powerful, full-stack web application designed to completely autom
 
 **1. Clone the repository**
 ```bash
-git clone [https://github.com/SpecR12/ShortsGPT.git](https://github.com/SpecR12/ShortsGPT.git)
+git clone https://github.com/SpecR12/ShortsGPT.git
 cd ShortsAI
 ```
 **2. Setup the Backend**
