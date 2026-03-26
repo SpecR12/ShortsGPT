@@ -1,6 +1,6 @@
-# 🎬 ShortsAI - Automated Viral Short Video Generator
+# 🎬 ShortsGPT - Automated Viral Short Video Generator
 
-ShortsAI is a powerful, full-stack web application designed to completely automate the creation of viral short-form videos (TikTok, YouTube Shorts, Instagram Reels). It combines state-of-the-art LLMs, AI Voice generation, Audio Transcription, and dynamic Video Rendering to produce ready-to-publish content in minutes.
+ShortsGPT is a powerful, full-stack web application designed to completely automate the creation of viral short-form videos (TikTok, YouTube Shorts, Instagram Reels). It combines state-of-the-art LLMs, AI Voice generation, Audio Transcription, and dynamic Video Rendering to produce ready-to-publish content in minutes.
 
 ---
 
