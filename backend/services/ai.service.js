@@ -40,18 +40,34 @@ Respond STRICTLY with a valid JSON using these exact keys:
 
     let content = res.choices[0].message.content;
 
+    // Curățarea de bază a markdown-ului
     content = content
       .replace(/```json/g, '')
       .replace(/```/g, '')
       .trim();
 
+    // --- PROTECȚIA JSON (Anti "Bad control character") ---
     try {
       return JSON.parse(content);
-    } catch {
-      const match = content.match(/\{[\s\S]*}/);
-      if (match) return JSON.parse(match[0]);
-      throw new Error("Invalid JSON format after cleanup");
+    } catch (parseError) {
+      console.warn(`⚠️ JSON invalid de la ${numeModel}. Încercăm curățarea extinsă...`);
+
+      // Eliminăm caracterele de control (enter, tab, etc.) care "sparg" JSON-ul în stringuri
+      // \u0000-\u001F reprezintă caractere invizibile/de control din ASCII
+      let cleanContent = content.replace(/[\u0000-\u001F]+/g, " ");
+
+      try {
+        return JSON.parse(cleanContent);
+      } catch (finalError) {
+        // Dacă tot e stricat, încercăm să extragem forțat un bloc care arată a JSON
+        const match = cleanContent.match(/\{[\s\S]*}/);
+        if (match) return JSON.parse(match[0]);
+
+        console.error(`❌ Eșec total la parsarea JSON-ului curățat de la ${numeModel}:`, finalError.message);
+        throw new Error("Invalid JSON format after cleanup");
+      }
     }
+    // --------------------------------------------------------
 
   } catch (e) {
     console.error(`Eroare generare ${numeModel}:`, e.message);
@@ -81,7 +97,11 @@ const genereazaOptiuni = async ({ prompt, youtubeUrl, uploadFilePath }) => {
     fs.unlinkSync(uploadFilePath);
   }
 
-  const [opt1, opt2] = await Promise.all([ cereScenariu(deepseek, 'deepseek-chat', prompt, ref), cereScenariu(qwen, 'qwen/qwen-2.5-72b-instruct', prompt, ref) ]);
+  const [opt1, opt2] = await Promise.all([
+    cereScenariu(deepseek, 'deepseek-chat', prompt, ref),
+    cereScenariu(qwen, 'qwen/qwen-2.5-72b-instruct', prompt, ref)
+  ]);
+
   return { DeepSeek: opt1, Qwen: opt2 };
 };
 
@@ -157,7 +177,19 @@ ${listaVoci}
       response_format: { type: "json_object" },
       max_tokens: 4000
     });
-    const data = JSON.parse(response.choices[0].message.content);
+
+    let contentAi = response.choices[0].message.content;
+
+    // --- PROTECȚIA JSON ȘI PENTRU ASISTENT ---
+    let data;
+    try {
+      data = JSON.parse(contentAi);
+    } catch(err) {
+      console.warn(`⚠️ JSON invalid la Asistent. Curățăm...`);
+      let cleanAiContent = contentAi.replace(/[\u0000-\u001F]+/g, " ");
+      data = JSON.parse(cleanAiContent);
+    }
+    // ------------------------------------------
 
     if (data && data['gata_de_randare'] === true) {
       return { status: "FINALIZAT", config: data.config };
@@ -165,7 +197,7 @@ ${listaVoci}
       return { status: "IN_CURS", mesaj: data.mesaj || "Ce modificări mai dorești?" };
     }
   } catch (eroare) {
-    console.error("Eroare la parsarea AI-ului:", eroare.message);
+    console.error("Eroare la parsarea AI-ului (Asistent):", eroare.message);
     return { status: "IN_CURS", mesaj: "Am înțeles, cum vrei să continuăm?" };
   }
 };

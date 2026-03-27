@@ -28,19 +28,25 @@ export class ChatArea implements OnInit, OnDestroy {
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
   private refreshSub: Subscription | undefined;
 
+  private isDestroyed = false;
+  private sesiuneaCurenta = 0;
+
   constructor(private route: ActivatedRoute, private api: ApiService, private cdr: ChangeDetectorRef) {}
 
   ngOnInit() {
     this.route.paramMap.subscribe(async (params) => {
+      this.sesiuneaCurenta++;
+      const sesiuneActiva = this.sesiuneaCurenta;
+
+      this.seIncarca = true;
+      this.aiGandeste = false;
+      this.mesajeNoi = [];
+      this.chatData = null;
       this.chatId = params.get('id');
+      this.cdr.markForCheck();
 
       const formatNou = this.route.snapshot.queryParamMap.get('format');
       const promptDinUrl = this.route.snapshot.queryParamMap.get('prompt');
-
-      this.seIncarca = true;
-      this.chatData = null;
-      this.aiGandeste = false;
-      this.mesajeNoi = [];
 
       if (this.chatId === 'nou') {
         if (!localStorage.getItem('token')) {
@@ -52,10 +58,12 @@ export class ChatArea implements OnInit, OnDestroy {
         if (promptDinUrl) {
           this.seIncarca = false;
           this.mesajCurent = promptDinUrl;
-          this.cdr.detectChanges();
+          this.cdr.markForCheck();
 
           setTimeout(() => {
-            this.trimiteMesaj().catch(err => console.error(err));
+            if (this.sesiuneaCurenta === sesiuneActiva && !this.isDestroyed) {
+              void this.trimiteMesaj(sesiuneActiva);
+            }
           }, 50);
         }
         else {
@@ -64,95 +72,122 @@ export class ChatArea implements OnInit, OnDestroy {
             rol: 'ai',
             text: 'Salut! 🎬 Sunt Regizorul tău AI. Scrie-mi o idee sau o scurtă descriere și hai să creăm un videoclip viral!'
           }];
-          this.cdr.detectChanges();
+          this.cdr.markForCheck();
         }
       }
       else if (this.chatId && this.chatId !== 'nou') {
-        await this.incarcaDateChatBaza();
+        await this.incarcaDateChatBaza(sesiuneActiva);
       } else {
         this.seIncarca = false;
+        this.cdr.markForCheck();
       }
 
-      const idSarcina = this.chatId === 'nou' ? 'nou' : this.chatId;
-
-      if (idSarcina && this.api.sarciniInFundal.has(idSarcina)) {
+      if (this.chatId && this.chatId !== 'nou' && this.api.sarciniInFundal.has(this.chatId)) {
         this.aiGandeste = true;
-        this.cdr.detectChanges();
+        this.cdr.markForCheck();
         this.scrollToBottom();
 
-        this.api.sarciniInFundal.get(idSarcina)!.then((raspuns: any) => {
-          if (idSarcina === 'nou') {
-            this.chatId = raspuns.chatId;
-            window.history.replaceState({}, '', `/chat/${this.chatId}`);
-            this.api.notificaRefreshIstoric();
-
-            this.chatData = {
-              prompt: promptDinUrl || 'Ideea a fost trimisă...',
-              formatVideo: formatNou || 'poveste_gta',
-              scenariiGenerate: raspuns.data
-            };
-            this.mesajeNoi = [...this.mesajeNoi, {
-              rol: 'ai',
-              text: 'Am generat două variante de scenariu pentru tine. Analizează-le mai jos și alege-o pe preferata ta:',
-              scenarii: raspuns.data
-            }];
-          } else {
-            this.handleAiResponse(raspuns);
+        this.api.sarciniInFundal.get(this.chatId)!.then((raspuns: any) => {
+          if (this.isDestroyed || this.sesiuneaCurenta !== sesiuneActiva) return;
+          this.handleAiResponse(raspuns);
+        }).catch(() => {
+          if (!this.isDestroyed && this.sesiuneaCurenta === sesiuneActiva) {
+            this.mesajeNoi = [...this.mesajeNoi, { rol: 'ai', text: 'Eroare de conexiune...' }];
           }
-        }).catch(err => {
-          console.error("Eroare la reconectare:", err);
-          this.mesajeNoi = [...this.mesajeNoi, { rol: 'ai', text: 'Eroare de conexiune...' }];
         }).finally(() => {
-          this.aiGandeste = false;
-          this.cdr.detectChanges();
-          this.scrollToBottom();
+          if (!this.isDestroyed && this.sesiuneaCurenta === sesiuneActiva) {
+            this.aiGandeste = false;
+            this.cdr.markForCheck();
+            this.scrollToBottom();
+          }
         });
       }
     });
 
-    this.refreshSub = this.api.refreshIstoric$.subscribe(() => {
+    this.refreshSub = this.api.refreshIstoric$.subscribe((actualizeazaSiChatul: boolean) => {
+      if (!actualizeazaSiChatul || this.isDestroyed) return;
+
       if (this.chatId && this.chatId !== 'nou') {
-        console.log("🔄 Polling terminat în fundal! Reîncărcăm mesajele din chat...");
         this.aiGandeste = false;
-        this.incarcaDateChatBaza().then(() => {
-          this.cdr.detectChanges();
-          this.scrollToBottom();
-        });
+        void this.incarcaDateChatBaza(this.sesiuneaCurenta);
       }
     });
   }
 
-  async incarcaDateChatBaza() {
+  async incarcaDateChatBaza(sesiune: number) {
     try {
       this.chatData = await this.api.getChatData(this.chatId!);
-      if (this.chatData.istoricInterviu) {
-        let ultimulIndexAI = -1;
-        for (let i = this.chatData.istoricInterviu.length - 1; i >= 0; i--) {
-          if (this.chatData.istoricInterviu[i].rol === 'assistant' || this.chatData.istoricInterviu[i].role === 'assistant') {
-            ultimulIndexAI = i;
+
+      if (this.isDestroyed || this.sesiuneaCurenta !== sesiune) return;
+
+      let mesajeReconstruite: any[] = [];
+      const arePromptInIstoric = this.chatData.istoricInterviu &&
+        this.chatData.istoricInterviu.length > 0 &&
+        this.chatData.istoricInterviu[0].text === this.chatData.prompt;
+
+      if (this.chatData && this.chatData.formatVideo !== 'split_screen' && !arePromptInIstoric) {
+        if (this.chatData.prompt) {
+          mesajeReconstruite.push({ rol: 'user', text: this.chatData.prompt });
+        }
+        if (this.chatData.scenariiGenerate && (!this.chatData.istoricInterviu || this.chatData.istoricInterviu.length === 0)) {
+          mesajeReconstruite.push({
+            rol: 'ai',
+            text: 'Am generat două variante de scenariu pentru tine. Analizează-le mai jos și alege-o pe preferata ta:',
+            scenarii: this.chatData.scenariiGenerate
+          });
+        }
+      }
+
+      if (this.chatData.istoricInterviu && this.chatData.istoricInterviu.length > 0) {
+        const istoricMapat = this.chatData.istoricInterviu.map((m: any) => {
+          const rolNormalizat = (m.rol || m.role || 'user').toLowerCase();
+          return {
+            rol: rolNormalizat === 'assistant' ? 'ai' : rolNormalizat,
+            text: m.text || m.content || m.mesaj || '',
+            videoUrl: m.videoUrl ? this.proceseazaLinkVideo(m.videoUrl) : null,
+            scenarii: m.scenarii || null
+          };
+        });
+        mesajeReconstruite = [...mesajeReconstruite, ...istoricMapat];
+      }
+
+      const areCarduriInIstoric = mesajeReconstruite.some(m => m.scenarii != null);
+      if (!areCarduriInIstoric && this.chatData.scenariiGenerate) {
+        for (let i = mesajeReconstruite.length - 1; i >= 0; i--) {
+          if (mesajeReconstruite[i].rol === 'ai' && !mesajeReconstruite[i].videoUrl) {
+            mesajeReconstruite[i].scenarii = this.chatData.scenariiGenerate;
             break;
           }
         }
-        this.mesajeNoi = this.chatData.istoricInterviu.map((m: any, index: number) => {
-          const trebuieCarduri = (index === ultimulIndexAI && !this.chatData.scenariuAles && this.chatData.scenariiGenerate);
-          return {
-            rol: m.rol || m.role,
-            text: m.text || m.content,
-            videoUrl: m.videoUrl ? this.proceseazaLinkVideo(m.videoUrl) : null,
-            scenarii: trebuieCarduri ? this.chatData.scenariiGenerate : null
-          };
-        });
       }
+
+      let ultimulIndexCuCarduri = -1;
+      for (let i = mesajeReconstruite.length - 1; i >= 0; i--) {
+        if (mesajeReconstruite[i].scenarii) {
+          ultimulIndexCuCarduri = i;
+          break;
+        }
+      }
+
+      mesajeReconstruite.forEach((m, index) => {
+        m.isUltimulSetDeCarduri = (index === ultimulIndexCuCarduri);
+      });
+
+      this.mesajeNoi = mesajeReconstruite;
+
     } catch (error) {
       console.error('❌ Eroare MongoDB:', error);
     } finally {
-      this.seIncarca = false;
-      this.cdr.detectChanges();
-      this.scrollToBottom();
+      if (!this.isDestroyed && this.sesiuneaCurenta === sesiune) {
+        this.seIncarca = false;
+        this.cdr.markForCheck();
+        this.scrollToBottom();
+      }
     }
   }
 
   ngOnDestroy() {
+    this.isDestroyed = true;
     if (this.refreshSub) {
       this.refreshSub.unsubscribe();
     }
@@ -166,12 +201,21 @@ export class ChatArea implements OnInit, OnDestroy {
   }
 
   handleAiResponse(raspuns: any) {
+    if (this.isDestroyed) return;
+
     const textAI = raspuns.reply || raspuns.raspuns || raspuns.mesaj || 'Am primit instrucțiunile!';
     const mesajNouAi: any = {rol: 'ai', text: textAI};
 
     if (raspuns.data && (raspuns.data.DeepSeek || raspuns.data.Qwen)) {
       mesajNouAi.scenarii = raspuns.data;
-      this.chatData.scenariiGenerate = raspuns.data;
+      mesajNouAi.isUltimulSetDeCarduri = true;
+
+      this.mesajeNoi.forEach(m => m.isUltimulSetDeCarduri = false);
+
+      if (this.chatData) {
+        this.chatData.scenariiGenerate = raspuns.data;
+        this.chatData.scenariuAles = null;
+      }
     }
 
     if (raspuns.status === 'finalizat' && raspuns.videoUrl) {
@@ -179,35 +223,40 @@ export class ChatArea implements OnInit, OnDestroy {
     }
 
     this.mesajeNoi = [...this.mesajeNoi, mesajNouAi];
-    this.cdr.detectChanges();
+    this.cdr.markForCheck();
     this.scrollToBottom();
   }
 
   onEnter(event: Event) {
     event.preventDefault();
-    this.trimiteMesaj().catch(err => console.error(err));
+    void this.trimiteMesaj();
   }
 
-  async trimiteMesaj() {
+  async trimiteMesaj(sesiuneCurentaPredefinita?: number) {
     if (!this.mesajCurent.trim() || !this.chatId) return;
+
+    const sesiune = sesiuneCurentaPredefinita || this.sesiuneaCurenta;
     const textTrimis = this.mesajCurent;
     this.mesajCurent = '';
 
     this.mesajeNoi = [...this.mesajeNoi, {rol: 'user', text: textTrimis}];
     this.aiGandeste = true;
-    this.cdr.detectChanges();
+    this.cdr.markForCheck();
     this.scrollToBottom();
 
     try {
       if (this.chatId === 'nou') {
         const formatSelectat = this.chatData?.formatVideo || 'poveste_gta';
+        const response: any = await this.api.startProiect(textTrimis, formatSelectat);
 
-        const request = this.api.startProiect(textTrimis, formatSelectat);
-        const response: any = await this.api.ruleazaInFundal('nou', request);
+        if (this.isDestroyed || this.sesiuneaCurenta !== sesiune) {
+          this.api.notificaRefreshIstoric(true);
+          return;
+        }
 
         this.chatId = response.chatId;
         window.history.replaceState({}, '', `/chat/${this.chatId}`);
-        this.api.notificaRefreshIstoric();
+        this.api.notificaRefreshIstoric(false);
 
         this.chatData = {
           prompt: textTrimis,
@@ -218,62 +267,72 @@ export class ChatArea implements OnInit, OnDestroy {
         this.mesajeNoi = [...this.mesajeNoi, {
           rol: 'ai',
           text: 'Am generat două variante de scenariu pentru tine. Analizează-le mai jos și alege-o pe preferata ta:',
-          scenarii: response.data
+          scenarii: response.data,
+          isUltimulSetDeCarduri: true
         }];
 
       }
       else {
         const request = this.api.trimiteMesajChat(this.chatId, textTrimis);
         const raspuns: any = await this.api.ruleazaInFundal(this.chatId, request);
+
+        if (this.isDestroyed || this.sesiuneaCurenta !== sesiune) return;
         this.handleAiResponse(raspuns);
       }
     } catch (error) {
       console.error('Eroare trimitere mesaj:', error);
-      this.mesajeNoi = [...this.mesajeNoi, { rol: 'ai', text: 'Eroare de conexiune cu serverul...'}];
-      this.cdr.detectChanges();
-      this.scrollToBottom();
+      if (!this.isDestroyed && this.sesiuneaCurenta === sesiune) {
+        this.mesajeNoi = [...this.mesajeNoi, { rol: 'ai', text: 'Eroare de conexiune cu serverul...'}];
+      }
     } finally {
-      this.aiGandeste = false;
-      this.cdr.detectChanges();
+      if (!this.isDestroyed && this.sesiuneaCurenta === sesiune) {
+        this.aiGandeste = false;
+        this.cdr.markForCheck();
+        this.scrollToBottom();
+      }
     }
   }
 
   async alegeScenariu(titlu: string, descriere: string) {
     if (this.aiGandeste || !this.chatId) return;
 
+    const sesiune = this.sesiuneaCurenta;
     const textTrimis = `Am ales: ${titlu}. \n\nDetalii: ${descriere}`;
     this.mesajeNoi = [...this.mesajeNoi, {rol: 'user', text: textTrimis}];
     this.aiGandeste = true;
-    this.cdr.detectChanges();
+    this.cdr.markForCheck();
     this.scrollToBottom();
 
     try {
       const request = this.api.trimiteMesajChat(this.chatId, textTrimis);
       const raspuns: any = await this.api.ruleazaInFundal(this.chatId, request);
+
+      if (this.isDestroyed || this.sesiuneaCurenta !== sesiune) return;
       this.handleAiResponse(raspuns);
     } catch (error) {
-      console.error('Eroare la selectie:', error);
-      this.mesajeNoi = [...this.mesajeNoi, { rol: 'ai', text: 'A apărut o problemă la comunicarea cu backend-ul...'}];
-      this.cdr.detectChanges();
-      this.scrollToBottom();
+      if (!this.isDestroyed && this.sesiuneaCurenta === sesiune) {
+        this.mesajeNoi = [...this.mesajeNoi, { rol: 'ai', text: 'A apărut o problemă...'}];
+      }
     } finally {
-      this.aiGandeste = false;
-      this.cdr.detectChanges();
+      if (!this.isDestroyed && this.sesiuneaCurenta === sesiune) {
+        this.aiGandeste = false;
+        this.cdr.markForCheck();
+        this.scrollToBottom();
+      }
     }
   }
 
   scrollToBottom(): void {
+    if (this.isDestroyed) return;
     try {
       setTimeout(() => {
         requestAnimationFrame(() => {
           const container = this.scrollContainer?.nativeElement;
           if (container) {
-            container.scrollTop = container.scrollHeight;
+            container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
           }
         });
-      }, 50);
-    } catch (err) {
-      console.error('Eroare la auto-scroll', err);
-    }
+      }, 100);
+    } catch (err) {}
   }
 }

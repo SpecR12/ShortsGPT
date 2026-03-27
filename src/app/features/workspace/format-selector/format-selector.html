@@ -1,33 +1,52 @@
 <div class="flex flex-col items-center justify-center h-full max-w-6xl mx-auto px-4 mt-10">
   <div class="mb-12 text-center">
-    <div class="bg-gray-700 p-3 rounded-full inline-block border border-gray-600 mb-4 shadow-lg">
+    <div class="bg-gray-700 p-3 rounded-full inline-block border border-gray-600 mb-4 shadow-lg transition-transform" [class.scale-110]="seIncarca">
       <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
     </div>
     <h2 class="text-3xl font-bold text-gray-100 mb-1">Salutare!</h2>
-    <p class="text-lg text-gray-400">Ce fel de videoclip Short randezi azi?</p>
+
+    <div class="h-8 mt-2 flex justify-center items-center transition-all duration-300">
+      @if (!seIncarca) {
+        <p class="text-lg text-gray-400">Ce fel de videoclip Short randezi azi?</p>
+      } @else {
+        <div class="flex items-center gap-2 text-lg text-blue-400 font-medium animate-pulse">
+          <svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          {{ mesajLoading || 'Se procesează...' }}
+        </div>
+      }
+    </div>
   </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full" [class.pointer-events-none]="seIncarca">
 
     <button (click)="alegeFormat('poveste_gta')" [disabled]="seIncarca" class="group p-5 bg-[#2f2f2f] border border-[#424242] rounded-2xl text-left hover:border-gray-500 transition-all shadow-md disabled:opacity-50 cursor-pointer">
-      <h4 class="font-semibold text-gray-100 mb-2 group-hover:text-blue-400">
+      <h4 class="font-semibold text-gray-100 mb-2 group-hover:text-blue-400 transition-colors">
         {{ seIncarca ? 'Se pregătește AI-ul...' : '🎮 Poveste GTA V' }}
       </h4>
       <p class="text-sm text-gray-400">AI-ul scrie povestea horror/funny, fundal GTA automat.</p>
     </button>
 
     <button (click)="alegeFormat('documentar_istoric')" [disabled]="seIncarca" class="group p-5 bg-[#2f2f2f] border border-[#424242] rounded-2xl text-left hover:border-gray-500 transition-all shadow-md disabled:opacity-50 cursor-pointer">
-      <h4 class="font-semibold text-gray-100 mb-2 group-hover:text-amber-400">
+      <h4 class="font-semibold text-gray-100 mb-2 group-hover:text-amber-400 transition-colors">
         {{ seIncarca ? 'Se pregătește AI-ul...' : '📜 Documentar Istoric' }}
       </h4>
       <p class="text-sm text-gray-400">Fapte istorice sau creepy, AI-ul alege imagini specifice.</p>
     </button>
 
-    <div class="group relative p-5 bg-[#2f2f2f] border border-[#424242] rounded-2xl text-left hover:border-gray-500 transition-all shadow-md overflow-hidden" [class.opacity-50]="seIncarca">
+    <div class="group relative p-5 bg-[#2f2f2f] border border-[#424242] rounded-2xl text-left transition-all shadow-md overflow-hidden"
+         [class.opacity-50]="seIncarca"
+         [class.hover:border-gray-500]="!seIncarca">
 
-      <input type="file" accept="video/mp4,video/x-m4v,video/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" (change)="incarcaVideoSplitScreen($event)" [disabled]="seIncarca">
+      <input type="file" accept="video/mp4,video/x-m4v,video/*" class="absolute inset-0 w-full h-full opacity-0 z-10"
+             [class.cursor-pointer]="!seIncarca"
+             [class.cursor-not-allowed]="seIncarca"
+             (change)="incarcaVideoSplitScreen($event)"
+             [disabled]="seIncarca">
 
-      <h4 class="font-semibold text-gray-100 mb-2 group-hover:text-indigo-400">
+      <h4 class="font-semibold text-gray-100 mb-2 group-hover:text-indigo-400 transition-colors">
         {{ seIncarca ? 'Se procesează...' : '✂️ Split-Screen (Upload)' }}
       </h4>
       <p class="text-sm text-gray-400">Tu vii cu videoclipul, noi adăugăm GTA V jos și îl tăiem perfect.</p>

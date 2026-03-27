@@ -8,14 +8,14 @@ import { firstValueFrom, Subject } from 'rxjs';
 export class ApiService {
   private baseUrl = 'http://localhost:3000/api';
 
-  private refreshIstoricSource = new Subject<void>();
+  private refreshIstoricSource = new Subject<boolean>();
   refreshIstoric$ = this.refreshIstoricSource.asObservable();
   public sarciniInFundal = new Map<string, Promise<any>>();
 
   constructor(private http: HttpClient) {}
 
-  notificaRefreshIstoric() {
-    this.refreshIstoricSource.next();
+  notificaRefreshIstoric(actualizeazaSiChatul = false) {
+    this.refreshIstoricSource.next(actualizeazaSiChatul);
   }
 
   ruleazaInFundal(idChat: string, actiune: Promise<any>): Promise<any> {
@@ -109,7 +109,7 @@ export class ApiService {
 
           if (chatData.status === 'finalizat') {
             clearInterval(checkInterval);
-            this.notificaRefreshIstoric();
+            this.notificaRefreshIstoric(true);
             resolve({
               status: 'finalizat',
               reply: 'Iată videoclipul tău Split-Screen! Gata de postat.',

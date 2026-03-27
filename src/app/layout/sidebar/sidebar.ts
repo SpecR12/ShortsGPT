@@ -1,8 +1,8 @@
 import { Component, OnInit, OnDestroy, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
-import { RouterLink, RouterLinkActive, Router } from '@angular/router';
+import { RouterLink, RouterLinkActive, Router, NavigationEnd } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { ApiService } from '../../core/services/api';
-import { Subscription } from 'rxjs';
+import { Subscription, filter } from 'rxjs';
 
 @Component({
   selector: 'app-sidebar',
@@ -14,27 +14,40 @@ import { Subscription } from 'rxjs';
 export class Sidebar implements OnInit, OnDestroy {
   istoric: any[] = [];
   seIncarca = true;
-  private abonamentRefresh!: Subscription;
   chatDeStersId: string | null = null;
+
+  private abonamentRefresh!: Subscription;
+  private routerSub!: Subscription;
 
   constructor(private api: ApiService, private cdr: ChangeDetectorRef, private router: Router) {}
 
   ngOnInit() {
-    void this.incarcaIstoric();
+    void this.incarcaIstoric(false);
+
     this.abonamentRefresh = this.api.refreshIstoric$.subscribe(() => {
-      void this.incarcaIstoric();
+      void this.incarcaIstoric(true);
+    });
+
+    this.routerSub = this.router.events.pipe(
+      filter(event => event instanceof NavigationEnd)
+    ).subscribe((event: any) => {
+      if (event.url === '/' || event.url === '/chat/nou') {
+        void this.incarcaIstoric(true);
+      }
+      this.cdr.markForCheck();
     });
   }
 
   ngOnDestroy() {
-    if (this.abonamentRefresh) {
-      this.abonamentRefresh.unsubscribe();
-    }
+    if (this.abonamentRefresh) this.abonamentRefresh.unsubscribe();
+    if (this.routerSub) this.routerSub.unsubscribe();
   }
 
-  async incarcaIstoric() {
-    this.seIncarca = true;
-    this.cdr.detectChanges();
+  async incarcaIstoric(silent = false) {
+    if (!silent) {
+      this.seIncarca = true;
+      this.cdr.markForCheck();
+    }
 
     try {
       const response: any = await this.api.getIstoricProiecte();
@@ -45,7 +58,7 @@ export class Sidebar implements OnInit, OnDestroy {
       console.error('❌ Eroare la încărcarea istoricului:', error);
     } finally {
       this.seIncarca = false;
-      this.cdr.detectChanges();
+      this.cdr.markForCheck();
     }
   }
 
@@ -53,12 +66,12 @@ export class Sidebar implements OnInit, OnDestroy {
     event.preventDefault();
     event.stopPropagation();
     this.chatDeStersId = id;
-    this.cdr.detectChanges();
+    this.cdr.markForCheck();
   }
 
   anuleazaStergerea() {
     this.chatDeStersId = null;
-    this.cdr.detectChanges();
+    this.cdr.markForCheck();
   }
 
   async confirmaStergerea() {
@@ -69,7 +82,7 @@ export class Sidebar implements OnInit, OnDestroy {
 
     const istoricBackup = [...this.istoric];
     this.istoric = this.istoric.filter(p => p._id !== id);
-    this.cdr.detectChanges();
+    this.cdr.markForCheck();
 
     try {
       await this.api.stergeChat(id);
@@ -83,7 +96,7 @@ export class Sidebar implements OnInit, OnDestroy {
     } catch (error) {
       console.error('Eroare la ștergere pe server:', error);
       this.istoric = istoricBackup;
-      this.cdr.detectChanges();
+      this.cdr.markForCheck();
       alert('Nu s-a putut șterge proiectul din baza de date.');
     }
   }

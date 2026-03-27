@@ -10,12 +10,14 @@ import { ApiService } from '../../../core/services/api';
 })
 export class FormatSelector {
   seIncarca = false;
+  mesajLoading = '';
 
   constructor(private api: ApiService, private router: Router, private cdr: ChangeDetectorRef) {}
 
   async alegeFormat(format: string) {
     this.seIncarca = true;
-    this.cdr.detectChanges();
+    this.mesajLoading = 'Pregătim spațiul de lucru...';
+    this.cdr.markForCheck();
 
     let promptAutomat = '';
 
@@ -35,6 +37,8 @@ Reguli stricte:
 
     try {
       if (!localStorage.getItem('token')) {
+        this.mesajLoading = 'Autentificare în curs...';
+        this.cdr.markForCheck();
         await this.api.loginRapid('salut2@shortsgpt.ro', 'parola_secreta');
       }
 
@@ -46,36 +50,47 @@ Reguli stricte:
       });
     } catch (error) {
       console.error('Eroare login:', error);
+      alert('A apărut o eroare la conectare. Te rugăm să încerci din nou.');
     } finally {
       this.seIncarca = false;
-      this.cdr.detectChanges();
+      this.mesajLoading = '';
+      this.cdr.markForCheck();
     }
   }
 
-  async incarcaVideoSplitScreen(event: any) {
-    const file = event.target.files[0];
-    if (!file) return;
+  async incarcaVideoSplitScreen(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+
+    const file = input.files[0];
 
     this.seIncarca = true;
-    this.cdr.detectChanges();
+    this.mesajLoading = 'Inițializăm proiectul Split-Screen...';
+    this.cdr.markForCheck();
 
     try {
       if (!localStorage.getItem('token')) {
+        this.mesajLoading = 'Autentificare în curs...';
+        this.cdr.markForCheck();
         await this.api.loginRapid('salut2@shortsgpt.ro', 'parola_secreta');
       }
 
       const initData = await this.api.initSplitScreenChat();
+
       await this.router.navigate(['/chat', initData.chatId]);
 
-      this.api.uploadSplitScreenVideo(initData.chatId, file).catch(e => console.error(e));
+      void this.api.uploadSplitScreenVideo(initData.chatId, file).catch(e => {
+        console.error('Eroare la procesarea în fundal:', e);
+      });
 
     } catch (error) {
       console.error('Eroare upload:', error);
-      alert('A apărut o problemă la încărcarea fișierului video.');
+      alert('A apărut o problemă la inițializarea videoclipului.');
     } finally {
       this.seIncarca = false;
-      this.cdr.detectChanges();
-      event.target.value = '';
+      this.mesajLoading = '';
+      this.cdr.markForCheck();
+      input.value = '';
     }
   }
 }

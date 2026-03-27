@@ -31,6 +31,15 @@ exports.startProiect = async (req, res) => {
     const uploadFilePath = req.file ? req.file.path : null;
     const optiuni = await genereazaOptiuni({ prompt, youtubeUrl, uploadFilePath });
 
+    const istoricInitial = [
+      { rol: "user", text: prompt },
+      {
+        rol: "assistant",
+        text: "Am generat două variante de scenariu pentru tine. Analizează-le mai jos și alege-o pe preferata ta:",
+        scenarii: optiuni
+      }
+    ];
+
     const chat = await Chat.create({
       userId: req.user._id,
       prompt,
@@ -38,7 +47,7 @@ exports.startProiect = async (req, res) => {
       status: 'generat_scenarii',
       formatVideo: formatVideo || 'poveste_gta',
       videoPrincipalUrl: youtubeUrl || uploadFilePath || null,
-      istoricInterviu: []
+      istoricInterviu: istoricInitial
     });
 
     res.json({ success: true, chatId: chat._id, data: optiuni });
@@ -81,7 +90,13 @@ exports.chatInterviu = async (req, res) => {
         const textAI = "Am înțeles! Am aruncat vechile idei și am generat două variante complet noi pentru tine. Analizează-le mai jos și alege-o pe cea mai bună:";
 
         chat.istoricInterviu.push({ rol: "user", text: mesajUser });
-        chat.istoricInterviu.push({ rol: "assistant", text: textAI });
+
+        chat.istoricInterviu.push({
+          rol: "assistant",
+          text: textAI,
+          scenarii: optiuniNoi
+        });
+
         await chat.save();
 
         return res.json({ success: true, status: 'in_curs', reply: textAI, data: optiuniNoi });
