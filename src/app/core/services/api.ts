@@ -99,32 +99,11 @@ export class ApiService {
     const data = await response.json();
     if (!data.success) throw new Error('Eroare la upload video');
 
-    const pollingPromise = new Promise((resolve) => {
-      const checkInterval = setInterval(async () => {
-        try {
-          const statusRes = await fetch(`${this.baseUrl}/chat/${chatId}`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-          });
-          const chatData = await statusRes.json();
+    this.notificaRefreshIstoric(true);
 
-          if (chatData.status === 'finalizat') {
-            clearInterval(checkInterval);
-            this.notificaRefreshIstoric(true);
-            resolve({
-              status: 'finalizat',
-              reply: 'Iată videoclipul tău Split-Screen! Gata de postat.',
-              videoUrl: chatData.videoFinalUrl
-            });
-          } else if (chatData.status === 'eroare') {
-            clearInterval(checkInterval);
-            resolve({ reply: 'A apărut o eroare la randarea videoclipului.' });
-          }
-        } catch (e) {
-          console.error('Eroare verificare status split-screen:', e);
-        }
-      }, 5000);
-    });
-    this.ruleazaInFundal(chatId, pollingPromise).catch(err => console.error('Eroare polling:', err));
-    return data;
+    return {
+      status: 'in_curs',
+      reply: data.mesaj
+    };
   }
 }

@@ -40,26 +40,21 @@ Respond STRICTLY with a valid JSON using these exact keys:
 
     let content = res.choices[0].message.content;
 
-    // Curățarea de bază a markdown-ului
     content = content
       .replace(/```json/g, '')
       .replace(/```/g, '')
       .trim();
 
-    // --- PROTECȚIA JSON (Anti "Bad control character") ---
     try {
       return JSON.parse(content);
     } catch (parseError) {
       console.warn(`⚠️ JSON invalid de la ${numeModel}. Încercăm curățarea extinsă...`);
 
-      // Eliminăm caracterele de control (enter, tab, etc.) care "sparg" JSON-ul în stringuri
-      // \u0000-\u001F reprezintă caractere invizibile/de control din ASCII
       let cleanContent = content.replace(/[\u0000-\u001F]+/g, " ");
 
       try {
         return JSON.parse(cleanContent);
       } catch (finalError) {
-        // Dacă tot e stricat, încercăm să extragem forțat un bloc care arată a JSON
         const match = cleanContent.match(/\{[\s\S]*}/);
         if (match) return JSON.parse(match[0]);
 
@@ -67,7 +62,6 @@ Respond STRICTLY with a valid JSON using these exact keys:
         throw new Error("Invalid JSON format after cleanup");
       }
     }
-    // --------------------------------------------------------
 
   } catch (e) {
     console.error(`Eroare generare ${numeModel}:`, e.message);
@@ -110,17 +104,39 @@ const genereazaOptiuni = async ({ prompt, youtubeUrl, uploadFilePath }) => {
  * @param {Array} istoric
  * @param {string} titluPoveste
  * @param {string} scenariuDraft
+ * @param {string} formatVideo
  */
-const asistentRegizor = async (mesajNou, istoric, titluPoveste, scenariuDraft) => {
-  const listaVoci = `
-    - Adam (Masculin, Ferm): pNInz6obpgDQGcFmaJgB
-    - Sarah (Feminin, Matura, Calda): EXAVITQu4vr4xnSDxMaL
-    - Bella (Feminin, Profesionala): hpp4J3VqNfWAUOO0d1Us
-    - Charlie (Masculin, Deep, Energetic): IKne3meq5aSn9XLyUdCD
-    - Lily (Feminin, Catifelat): pFZP5JQG7iQjIQuC4Bku
-    - Liam (Masculin, Social Media): TX3LPaxmHKxFdv7VOQHJ
-  `;
-  const sysPrompt = `Ești un regizor video expert.
+const asistentRegizor = async (mesajNou, istoric, titluPoveste, scenariuDraft, formatVideo) => {
+  let sysPrompt;
+
+  if (formatVideo === 'split_screen') {
+    sysPrompt = `Ești un asistent video prietenos. Utilizatorul a încărcat un videoclip și vrea să facă un 'Sludge Content' (Split-Screen cu un joc în partea de jos).
+Sarcina ta:
+Trebuie să stabilești cu el 2 detalii înainte de randare:
+1. Dacă vrea să îi generez subtitrări animate peste video (da sau nu).
+2. Ce joc/fundal vrea în partea de jos (ex: GTA V, Minecraft, ASMR Slime, CS:GO Surfing).
+
+Discută cu el natural, fii scurt și la obiect. Când ai ambele informații clare de la el, TRECI LA TREABĂ setând "gata_de_randare": true.
+
+FORMAT JSON OBLIGATORIU:
+{
+  "gata_de_randare": false,
+  "mesaj": "Răspunsul tău către el (îl întrebi ce lipsește sau îi confirmi că începi randarea)",
+  "config": {
+    "subtitrari": false,
+    "fundal": "GTA V"
+  }
+}`;
+  } else {
+    const listaVoci = `
+      - Adam (Masculin, Ferm): pNInz6obpgDQGcFmaJgB
+      - Sarah (Feminin, Matura, Calda): EXAVITQu4vr4xnSDxMaL
+      - Bella (Feminin, Profesionala): hpp4J3VqNfWAUOO0d1Us
+      - Charlie (Masculin, Deep, Energetic): IKne3meq5aSn9XLyUdCD
+      - Lily (Feminin, Catifelat): pFZP5JQG7iQjIQuC4Bku
+      - Liam (Masculin, Social Media): TX3LPaxmHKxFdv7VOQHJ
+    `;
+    sysPrompt = `Ești un regizor video expert.
 Statusul curent:
 Titlu selectat: "${titluPoveste}"
 Schița actuală: "${scenariuDraft}"
@@ -162,6 +178,7 @@ ${listaVoci}
     "pexels_query": "Dacă fundalul este Documentar Istoric, scrie aici 1-2 cuvinte cheie ÎN ENGLEZĂ foarte generale pentru Pexels (ex: 'vintage soldier', 'old city', 'dark forest', 'black and white history'). Fii cât mai general ca să existe clipuri stock!"
   }
 }`;
+  }
 
   const mesaje = [
     { role: "system", content: sysPrompt },
@@ -180,7 +197,6 @@ ${listaVoci}
 
     let contentAi = response.choices[0].message.content;
 
-    // --- PROTECȚIA JSON ȘI PENTRU ASISTENT ---
     let data;
     try {
       data = JSON.parse(contentAi);
@@ -189,7 +205,6 @@ ${listaVoci}
       let cleanAiContent = contentAi.replace(/[\u0000-\u001F]+/g, " ");
       data = JSON.parse(cleanAiContent);
     }
-    // ------------------------------------------
 
     if (data && data['gata_de_randare'] === true) {
       return { status: "FINALIZAT", config: data.config };

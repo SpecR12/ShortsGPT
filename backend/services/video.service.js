@@ -103,7 +103,7 @@ const randeazaVideoDinamic = async ({ audioUrl, fundalJoc, wordTimestamps, video
         .complexFilter(complexFiltre)
         .outputOptions([
           '-map [v]',
-          '-map 0:a', // Sunetul original
+          '-map 0:a?',
           '-shortest',
           '-c:v libx264',
           '-preset fast',
@@ -135,7 +135,7 @@ const randeazaVideoDinamic = async ({ audioUrl, fundalJoc, wordTimestamps, video
           '-c:a aac',
           '-b:a 192k',
           '-map 0:v:0',
-          '-map 1:a:0'
+          '-map 1:a:0?'
         ]);
     }
 
